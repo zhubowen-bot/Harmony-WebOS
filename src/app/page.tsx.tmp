@@ -1,0 +1,274 @@
+'use client';
+
+import React, { useState, useCallback } from 'react';
+import dynamic from 'next/dynamic';
+
+const BootScreen = dynamic(() => import('@/components/BootScreen'));
+const Desktop = dynamic(() => import('@/components/Desktop'));
+const Taskbar = dynamic(() => import('@/components/Taskbar'));
+const StartMenu = dynamic(() => import('@/components/StartMenu'));
+const ControlCenter = dynamic(() => import('@/components/ControlCenter'));
+const Window = dynamic(() => import('@/components/Window'));
+
+const NotepadApp = dynamic(() => import('@/components/apps/NotepadApp'));
+const CalculatorApp = dynamic(() => import('@/components/apps/CalculatorApp'));
+const FileManagerApp = dynamic(() => import('@/components/apps/FileManagerApp'));
+const BrowserApp = dynamic(() => import('@/components/apps/BrowserApp'));
+const ImageViewerApp = dynamic(() => import('@/components/apps/ImageViewerApp'));
+const SettingsApp = dynamic(() => import('@/components/apps/SettingsApp'));
+
+export default function HarmonyOSPage() {
+  const [bootComplete, setBootComplete] = useState(true); // 直接设置为 true，跳过开机画面
+  const [showStartMenu, setShowStartMenu] = useState(false);
+  const [showControlCenter, setShowControlCenter] = useState(false);
+  const [windows, setWindows] = useState<any[]>([]);
+  const [maxZIndex, setMaxZIndex] = useState(100);
+  const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
+
+  const [systemSettings, setSystemSettings] = useState({
+    wifi: true,
+    bluetooth: true,
+    airplaneMode: false,
+    brightness: 70,
+    volume: 80,
+    darkMode: false,
+    eyeProtection: false,
+    autoRotate: true,
+    focusMode: false,
+  });
+
+  const desktopIcons = [
+    { id: '1', name: '设置', icon: '⚙️', appId: 'settings' },
+    { id: '2', name: '记事本', icon: '📝', appId: 'notepad' },
+    { id: '3', name: '计算器', icon: '🔢', appId: 'calculator' },
+    { id: '4', name: '文件管理器', icon: '📁', appId: 'filemanager' },
+    { id: '5', name: '浏览器', icon: '🌐', appId: 'browser' },
+    { id: '6', name: '图片查看器', icon: '🖼️', appId: 'imageviewer' },
+  ];
+
+  const appConfigs = {
+    settings: {
+      name: '设置',
+      icon: '⚙️',
+      component: SettingsApp,
+      defaultWidth: 900,
+      defaultHeight: 600,
+    },
+    notepad: {
+      name: '记事本',
+      icon: '📝',
+      component: NotepadApp,
+      defaultWidth: 600,
+      defaultHeight: 400,
+    },
+    calculator: {
+      name: '计算器',
+      icon: '🔢',
+      component: CalculatorApp,
+      defaultWidth: 320,
+      defaultHeight: 480,
+    },
+    filemanager: {
+      name: '文件管理器',
+      icon: '📁',
+      component: FileManagerApp,
+      defaultWidth: 800,
+      defaultHeight: 500,
+    },
+    browser: {
+      name: '浏览器',
+      icon: '🌐',
+      component: BrowserApp,
+      defaultWidth: 1000,
+      defaultHeight: 700,
+    },
+    imageviewer: {
+      name: '图片查看器',
+      icon: '🖼️',
+      component: ImageViewerApp,
+      defaultWidth: 700,
+      defaultHeight: 500,
+    },
+  };
+
+  const openApp = useCallback(
+    (appId: string) => {
+      const config = appConfigs[appId as keyof typeof appConfigs];
+      if (!config) return;
+
+      const existingWindow = windows.find((w) => w.appId === appId);
+      if (existingWindow) {
+        setWindows((prev) =>
+          prev.map((w) =>
+            w.id === existingWindow.id
+              ? { ...w, isMinimized: false, zIndex: maxZIndex + 1 }
+              : w
+          )
+        );
+        setActiveWindowId(existingWindow.id);
+        setMaxZIndex((prev) => prev + 1);
+        return;
+      }
+
+      const newWindow = {
+        id: `window-${Date.now()}`,
+        title: config.name,
+        appId,
+        x: 100 + windows.length * 50,
+        y: 100 + windows.length * 30,
+        width: config.defaultWidth,
+        height: config.defaultHeight,
+        state: 'normal' as const,
+        zIndex: maxZIndex + 1,
+        isMinimized: false,
+      };
+
+      setWindows((prev) => [...prev, newWindow]);
+      setActiveWindowId(newWindow.id);
+      setMaxZIndex((prev) => prev + 1);
+    },
+    [windows, maxZIndex, appConfigs]
+  );
+
+  const closeWindow = useCallback((windowId: string) => {
+    setWindows((prev) => prev.filter((w) => w.id !== windowId));
+  }, []);
+
+  const minimizeWindow = useCallback((windowId: string) => {
+    setWindows((prev) =>
+      prev.map((w) =>
+        w.id === windowId ? { ...w, isMinimized: true } : w
+      )
+    );
+  }, []);
+
+  const maximizeWindow = useCallback((windowId: string) => {
+    setWindows((prev) =>
+      prev.map((w) =>
+        w.id === windowId
+          ? {
+              ...w,
+              state: w.state === 'maximized' ? 'normal' : 'maximized',
+            }
+          : w
+      )
+    );
+  }, []);
+
+  const focusWindow = useCallback((windowId: string) => {
+    setWindows((prev) =>
+      prev.map((w) =>
+        w.id === windowId ? { ...w, zIndex: maxZIndex + 1, isMinimized: false } : w
+      )
+    );
+    setActiveWindowId(windowId);
+    setMaxZIndex((prev) => prev + 1);
+  }, [maxZIndex]);
+
+  const updateWindowPosition = useCallback((windowId: string, x: number, y: number) => {
+    setWindows((prev) =>
+      prev.map((w) => (w.id === windowId ? { ...w, x, y } : w))
+    );
+  }, []);
+
+  const updateWindowSize = useCallback((windowId: string, width: number, height: number) => {
+    setWindows((prev) =>
+      prev.map((w) => (w.id === windowId ? { ...w, width, height } : w))
+    );
+  }, []);
+
+  const getActiveApps = () => {
+    return windows.map((w) => {
+      const config = appConfigs[w.appId as keyof typeof appConfigs];
+      return {
+        id: w.id,
+        name: config.name,
+        icon: config.icon,
+      };
+    });
+  };
+
+  const handleToggleSetting = (key: string) => {
+    setSystemSettings((prev) => ({
+      ...prev,
+      [key]: !prev[key as keyof typeof prev],
+    }));
+  };
+
+  const handleChangeSlider = (key: string, value: number) => {
+    setSystemSettings((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
+  };
+
+  if (!bootComplete) {
+    return <BootScreen onComplete={() => setBootComplete(true)} />;
+  }
+
+  return (
+    <div className="fixed inset-0 bg-gradient-to-br from-blue-400 via-purple-500 to-orange-400 overflow-hidden">
+      {showStartMenu && (
+        <StartMenu
+          onClose={() => setShowStartMenu(false)}
+          onOpenApp={openApp}
+        />
+      )}
+
+      {showControlCenter && (
+        <ControlCenter
+          onClose={() => setShowControlCenter(false)}
+          settings={systemSettings}
+          onToggle={handleToggleSetting}
+          onChangeSlider={handleChangeSlider}
+        />
+      )}
+
+      <Desktop
+        icons={desktopIcons}
+        onIconClick={(appId) => {}}
+        onIconDoubleClick={openApp}
+      />
+
+      {windows.map((window) => {
+        const config = appConfigs[window.appId as keyof typeof appConfigs];
+        const AppComponent = config.component;
+
+        return (
+          <Window
+            key={window.id}
+            window={window}
+            onClose={closeWindow}
+            onMinimize={minimizeWindow}
+            onMaximize={maximizeWindow}
+            onFocus={focusWindow}
+            onUpdatePosition={updateWindowPosition}
+            onUpdateSize={updateWindowSize}
+          >
+            <AppComponent />
+          </Window>
+        );
+      })}
+
+      <Taskbar
+        activeApps={getActiveApps()}
+        onOpenStartMenu={() => setShowStartMenu(true)}
+        onOpenControlCenter={() => setShowControlCenter(true)}
+        onSwitchApp={(appId) => {
+          const window = windows.find((w) => w.appId === appId);
+          if (window) {
+            if (window.isMinimized) {
+              focusWindow(window.id);
+            } else if (activeWindowId === window.id) {
+              minimizeWindow(window.id);
+            } else {
+              focusWindow(window.id);
+            }
+          } else {
+            openApp(appId);
+          }
+        }}
+      />
+    </div>
+  );
+}
