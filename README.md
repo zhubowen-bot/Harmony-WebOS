@@ -1,0 +1,1 @@
+鸿蒙电脑网页版模拟器，基于javascript和ArkTS相似性，参考OpenHarmony设计
